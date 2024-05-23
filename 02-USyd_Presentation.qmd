@@ -1,0 +1,508 @@
+---
+title: "Bootstrap Confidence Intervals"
+subtitle: "A Computational Approach to Statistical Inference"
+author: "Huan (Jaslene) Lin"
+institute: "24 May 2024"
+#footer: "University of Sydney"
+format: 
+  revealjs:
+    footer: "School of Mathematics and Statistics"
+    #slide-number: h.v
+    code-fold: true
+    theme: [moon, custom.scss]
+    preview-links: auto
+    chalkboard: 
+      boardmarker-width: 5
+from: markdown+emoji
+execute:
+  echo: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+## Acknowledgement of Country
+
+![](figure/country.jpg){fig-align="center"}
+
+<br>
+
+We acknowledge the tradition of custodianship and law of the Country on
+which the University of Sydney campuses stand. We pay our respects to
+those who have cared and continue to care for Country.
+
+## What You Will Not Learn
+
+::: incremental
+-   :negative_squared_cross_mark: Theory-Based Approach to Confidence
+    Intervals
+-   :negative_squared_cross_mark: Formulas and Derivations
+:::
+
+## What You Will Take Away
+
+::: incremental
+-   :white_check_mark: The Data Story
+-   :white_check_mark: Using **R** to Explore the Concept
+-   :white_check_mark: Conceptual Understanding of Confidence Interval
+:::
+
+## Let's Eat Cake (first)! :cake:
+
+```{r code end product, echo=TRUE, results='markup'}
+library(tidyverse)
+library(openintro)
+library(infer)
+
+aus_adults <- tibble(climate_change = c(rep("Yes",70000), rep("No", 30000)))
+
+set.seed(100)
+
+n <- 60
+
+samp <- aus_adults |> 
+    sample_n(size = n) 
+
+bootstrap_distribution <- samp |> 
+  specify(response = climate_change, success = "Yes") |> 
+  generate(reps = 1000, type = "bootstrap") |> 
+  calculate(stat = "prop")
+
+percentile_ci <- bootstrap_distribution |> 
+  get_confidence_interval(level = 0.95, type = "percentile")
+
+
+
+```
+
+## Let's Eat Cake (first)! :cake:
+
+```{r graph end product, echo=TRUE, results = "hide", fig.height = 12, fig.width = 16}
+percentile_ci <- bootstrap_distribution |> 
+  get_confidence_interval(level = 0.95, type = "percentile")
+
+
+visualize(bootstrap_distribution) + 
+  shade_confidence_interval(endpoints = percentile_ci)
+
+
+
+```
+
+We are 95% confident that the proportion of Australian adults who are
+concerned about **climate change** and its impact is somewhere between
+*0.6* and *0.83.*
+
+## The Data Story
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+1 [2 3 4 5 6]{style="opacity:0.25"}
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+![](figure/Screenshot%202024-05-19%20at%2017-09-55%20australians%20are%20concerned%20about%20climate%20change%20-%20Google%20Search.png){fig-align="center"}
+
+**Source:** [Climate of the Nation
+2023](https://australiainstitute.org.au/report/climate-of-the-nation-2023/)
+
+## The Population and its Parameter
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1]{style="opacity:0.25"} 2 [3 4 5 6]{style="opacity:0.25"}
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+```{r generate data, echo = TRUE, results='markup'}
+## Needed Packages
+library(tidyverse)
+library(openintro)
+library(infer)
+## Assume that a total population size of 100,000 
+aus_adults <- tibble(climate_change = c(rep("Yes",70000), 
+
+rep("No", 30000)))
+
+aus_adults |> count(climate_change) |> 
+    mutate(p_true = n /sum(n)) |> 
+    filter(climate_change == "Yes") |> 
+    select(p_true)
+
+
+```
+
+::: incremental
+-   The Population: 100,000 Australian adults
+
+<br>
+
+-   The Population Parameter: the *proportion* of Australian adults who
+    said **Yes** to the climate change question ($p$)
+:::
+
+## The Sample and the Sample Statistic
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1]{style="opacity:0.25"} 2 [3 4 5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+```{r random sample}
+set.seed(100)
+
+n <- 60
+
+samp <- aus_adults |> 
+    sample_n(size = n) 
+## the sample proportion 
+samp |> 
+    count(climate_change) |> 
+    mutate(p_hat = n /sum(n)) |> 
+    filter(climate_change == "Yes") |> 
+    select(p_hat)
+
+
+```
+
+::: incremental
+-   The Sample: 60 randomly selected Australian adults
+
+<br>
+
+-   The Sample Statistic: the *sample proportion* of Australian adults
+    who said **Yes** to the climate change question ($\hat{p}$)
+:::
+
+## Question
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1]{style="opacity:0.25"} 2 [3 4 5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+What do you think will happen to $\hat{p}$ if we take a new sample?
+
+## Question
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1]{style="opacity:0.25"} 2 [3 4 5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+What do you think would happen to $\hat{p}$ when taking a new sample?
+
+```{r resample-1}
+# Initialise a vector to store the sample proportions
+sample_proportions <- numeric(20)
+
+# Repeat the sampling process 10 times
+for (i in 1:20) {
+  # Take a random sample of 60 observations
+  samp_n <- aus_adults  |> 
+    sample_n(size = 60) |>
+    count(climate_change) |>
+    mutate(p_hat = n / sum(n))
+  
+  # Calculate the sample proportion for "Yes"
+  p_hat_yes <- samp_n |> filter(climate_change == "Yes") |> select(p_hat) |> pull()
+  
+  # Store the sample proportion
+  sample_proportions[i] <- c(round(p_hat_yes, 3))
+}
+
+# Print the sample proportions
+print(sample_proportions)
+
+
+```
+
+## Wait A Minute
+
+*Real-World Complications*
+
+::: incremental
+-   Unknown Total Population Size
+
+<br>
+
+-   Unknown Population $p$
+:::
+
+## Statistical Inference
+
+***Two Types of Estimates***
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2]{style="opacity:0.25"} 3 [4 5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+::: incremental
+-   **Point Estimate**
+
+    *A single plausible value for the population parameter (*$p$).
+
+<br>
+
+-   **Confidence Interval**
+
+    *A plausible range of values for the population parameter (*$p$),
+    with 95% confidence.
+:::
+
+## Confidence Intervals (CI)
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3]{style="opacity:0.25"} 4 [5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+![Credit: Chapter 8
+ModernDive](figure/point_estimate_vs_conf_int.png){width="1702"}
+
+## Confidence Intervals (CI)
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3]{style="opacity:0.25"} 4 [5 6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+![Credit: Chapter 8
+ModernDive](figure/point_estimate_vs_conf_int.png){width="600"}
+
+::: incremental
+-   :trophy: Goal: Fishing with a net (the CI) to catching the fish
+    ($p$)
+-   :toolbox: Tool: Bootstrapping
+:::
+
+## Bootstrapping
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4]{style="opacity:0.25"} 5 [6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+Bootstrapping is a *computational approach* to quantify the variablity
+of a statistic from sample to sample.
+
+![[Credit: What Is Bootstrapping
+Statistics?](https://builtin.com/data-science/bootstrapping-statistics)](figure/3_bootstrapping-statistics.jpeg){fig-align="center"
+width="1500"}
+
+## Bootstrapping via *Infer* package
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4]{style="opacity:0.25"} 5 [6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+![Credit: Chapter 8
+ModernDive](figure/ci_diagram.png){fig-align="center"}
+
+## Bootstrapping via *Infer* package
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4]{style="opacity:0.25"} 5 [6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+```{r bootstrapping}
+## Needed Packages
+library(tidyverse)
+library(openintro)
+library(infer)
+
+
+bootstrap_distribution <- samp |> ## constructed from the original sample
+  specify(response = climate_change, success = "Yes") |>  ## specify the variable of interest
+  generate(reps = 1000, type = "bootstrap") |> ## sample with replacement 1000 times
+  calculate(stat = "prop") ## calculate sample proportion for each bootstrap sample
+
+## visualise the bootstrap sampling distribution of the sample proportion
+visualize(bootstrap_distribution)
+
+```
+
+## Percentile Method
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4]{style="opacity:0.25"} 5 [6]{style="opacity:0.25"}
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+```{r percentile, echo=TRUE, results='markup', fig.height = 3, fig.width = 4, fig.path = "", fig.cap = ""}
+
+
+percentile_ci <- bootstrap_distribution |> 
+  get_confidence_interval(level = 0.95, type = "percentile")
+
+percentile_ci
+
+visualize(bootstrap_distribution) + 
+  shade_confidence_interval(endpoints = percentile_ci)
+
+
+
+
+```
+
+## Tell your story with data
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4 5]{style="opacity:0.25"} 6
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+**Q: Did our net (confidence interval) capture the fish (the population
+proportion** $p$)?
+
+## Tell your story with data
+
+::: {.absolute top="0" left="100%"}
+::: sectionhead
+[1 2 3 4 5]{style="opacity:0.25"} 6
+
+![](figure/Sustainable_Development_Goal_13Climate.svg.png)
+:::
+:::
+
+**Q: Did our net (confidence interval) capture the fish (the population
+proportion** $p$)?
+
+::: incremental
+A: We do not know and will never know in reality!
+
+-   Each confidence interval either **captures** the fish or **fails to
+    capture** the "fish".
+
+-   A 95% CI is constructed with the expectation that, in the long run,
+    95% of such nets (CIs) will capture the "fish" ($p$).
+
+-   We are *95% confident* that the proportion of Australian adults who
+    are concerned about climate change and its impact is somewhere
+    between *0.6* and *0.833.*
+:::
+
+## Proposed Assessment
+
+![](figure/data_investigation.png){fig-align="center"}
+
+[Credit: Statistics
+Teacher](https://www.statisticsteacher.org/2022/03/23/diggingdata/)
+
+## Proposed Assessment
+
+::: incremental
+Students will:
+
+-   Research the UNSDG 17 goals and select one that resonates most with
+    them.
+
+-   Find a recent media report on this issue.
+
+-   Modify the provided R code to construct, visualise and communicate
+    the bootstrap CI in the context of the selected UNSDG goal.
+
+-   A minute paper to reflect of the core concept of CI.
+:::
+
+## Pedagogy for Assessment
+
+![Credit: Monash Learning and Teaching: Teaching
+HQ](figure/Celia-Biggs%20image.JPG){fig-align="center"}
+
+::: incremental
+-   Constructive Alignment that Promotes Consistency and Connection
+
+-   Student-Centred and Authentic
+
+-   Self-Reflection that Promotes Lifelong Learning
+:::
+
+## Pedagogy for the Mini Presentation
+
+::: incremental
+-   Student Cohort: forster statistical thinking and conceputal
+    understanding
+
+-   Strategic and Prioritising Topics in Intro Stats/Data Science
+
+-   Employability: computing and reproducibility
+:::
+
+
+## :medal_military: Sydney in 2032 
+
+Our Student-Focused Education is *Transformational*
+
+-   Pedagogy: Professional Development, Partnership with the Educational
+    Innovation Team, and Establishment of a Community of Practice to Enhance 
+    Pedagogical Expertise and Tools.
+
+## :medal_military: Sydney in 2032 
+
+Our Student-Focused Education is *Transformational*
+
+-   Curriculum Design:
+
+    -   Course (re)accreditation/ Unit (re)design via Constructive
+        Alignment.
+
+    -   Adoption of Universal Design Principles to Celebrate Diversity.
+
+    -   Flexible Modes of Learning and Teaching: On-campus, Fully online, Hybrid,
+        Flipped classrooms.
+
+    -   Emphasis on Active-Learning and Assessment *of* *(as*) Learning.
+
+    -   Implementation of Scaffolding Strategies: Bridging and Micro-Credential Courses, Peer
+        Mentoring/Study Groups.
+
+## :medal_military: Sydney in 2032 
+
+Our Student-Focused Education is *Transformational*
+
+-   Co-curricular Activities:
+
+    -   Fostering a Sense of belonging: Academic Mentoring to Create Teacher-Student
+        Rapport, Reviving Student Communities.
+
+    -   Employability: Offering Industry Guest Seminars, Workshops and Mentoring. Organising
+        Career Fairs and Conferences.
